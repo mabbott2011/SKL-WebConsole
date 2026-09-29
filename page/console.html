@@ -1,0 +1,378 @@
+<!doctype html>
+<!--
+  SKLWebConsole browser page.
+  This is the SOURCE. The firmware serves a gzipped copy that lives in
+  src/SKLWebConsolePage.h -- after editing this file, regenerate it with:
+      python3 tools/embed_page.py
+  Everything is inline and there are no external requests, so the page works
+  on a device's own setup network with no internet.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console</title>
+<style>
+:root{
+  --bg:#0d1512;--panel:#121d18;--panel2:#17241e;--line:#1f2f27;--text:#e6efe9;--muted:#8fa69a;
+  --moss:#6fae84;--glow:#f3d77a;--err:#f08a7a;--crit:#ff5c7a;--warn:#f3c16a;--info:#e6efe9;--debug:#7f978b;
+  --mark:rgba(243,215,122,.28);--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.4 var(--sans);display:flex;flex-direction:column;overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.brand h1{font-size:17px;margin:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand small{color:var(--muted);font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;font-size:12px;border:1px solid var(--line);background:var(--panel2);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pill.live .dot{background:var(--moss);box-shadow:0 0 8px var(--moss)}
+.pill.wait .dot{background:var(--warn);animation:blink 1s infinite}
+.pill.off .dot{background:var(--err)}
+@keyframes blink{50%{opacity:.3}}
+.stats{color:var(--muted);font-size:12px;white-space:nowrap}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--moss)}
+.btn.on{background:var(--moss);border-color:var(--moss);color:#0d1512;font-weight:600}
+.btn.pause.on{background:var(--glow);border-color:var(--glow)}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.filter{flex:1;min-width:140px;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 10px}
+.filter:focus,.cmd input:focus{outline:none;border-color:var(--moss)}
+.lvl{padding:4px 8px;font-size:12px;font-family:var(--mono)}
+.lvl[data-l=ERROR].on{background:var(--err);border-color:var(--err)}
+.lvl[data-l=WARN].on{background:var(--warn);border-color:var(--warn)}
+.lvl[data-l=INFO].on{background:var(--info);border-color:var(--info)}
+.lvl[data-l=DEBUG].on{background:var(--debug);border-color:var(--debug)}
+main{flex:1;position:relative;min-height:0}
+#log{position:absolute;inset:0;overflow:auto;font:13px/1.55 var(--mono);padding:6px 0}
+.row{display:flex;padding:0 16px 0 0}
+.row:hover{background:var(--panel)}
+.row .n{flex:0 0 64px;text-align:right;padding-right:12px;color:var(--debug);user-select:none;opacity:.7}
+.row .t{flex:0 0 92px;color:var(--debug);user-select:none;display:none}
+body.times .row .t{display:block}
+.row .x{flex:1;white-space:pre;min-width:0}
+body.wrap .row .x{white-space:pre-wrap;word-break:break-word}
+.l-CRITICAL .x{color:var(--crit);font-weight:700}.l-ERROR .x{color:var(--err)}.l-WARN .x{color:var(--warn)}.l-DEBUG .x{color:var(--debug)}
+.hist .x{opacity:.72}
+.echo .x{color:var(--moss)}
+mark{background:var(--mark);color:inherit;border-radius:2px}
+.note{margin:6px 16px 6px 76px;padding:2px 10px;border-left:2px solid var(--glow);color:var(--glow);font:12px var(--sans)}
+#jump{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:none;background:var(--glow);color:#0d1512;border:0;border-radius:99px;padding:7px 16px;font-weight:600;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.45)}
+#jump.show{display:block}
+footer{border-top:1px solid var(--line);background:var(--panel);padding:10px 16px;display:flex;flex-direction:column;gap:8px}
+.cmd{display:flex;gap:8px}
+.cmd input{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-family:var(--mono)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;padding:3px 10px;border-radius:99px}
+#overlay{position:fixed;inset:0;background:rgba(13,21,18,.92);display:none;align-items:center;justify-content:center;z-index:5;padding:16px}
+#overlay.show{display:flex}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;max-width:380px;text-align:center}
+.card h2{margin:0 0 8px;font-size:18px}.card p{color:var(--muted);margin:0 0 16px}
+.card a{display:inline-block;background:var(--moss);color:#0d1512;border-radius:8px;padding:8px 16px;text-decoration:none;font-weight:600}
+@media (max-width:640px){.row .n{flex-basis:44px;padding-right:8px}.note{margin-left:52px}.hide-sm{display:none}}
+</style>
+</head>
+<body class="wrap">
+<header>
+  <div class="brand"><h1 id="title">Console</h1><small id="sub"></small></div>
+  <span class="stats" id="stats">0 lines</span>
+  <span class="pill wait" id="conn"><span class="dot"></span><span id="connText">Connecting…</span></span>
+</header>
+
+<div class="bar">
+  <button class="btn pause" id="pause" title="Freeze the view so you can read. New lines keep arriving in the background. (Esc toggles)">&#10074;&#10074; Pause</button>
+  <button class="btn" id="clear" title="Clear the screen (the device keeps running)">Clear</button>
+  <button class="btn" id="save" title="Download everything received as a .log file">Download</button>
+  <button class="btn hide-sm" id="copy" title="Copy the visible lines">Copy</button>
+  <span class="sep hide-sm"></span>
+  <input class="filter" id="filter" placeholder="Filter (text or /regex/)" spellcheck="false" autocomplete="off">
+  <button class="btn lvl on" data-l="ERROR" title="Show CRITICAL and ERROR lines">ERR</button>
+  <button class="btn lvl on" data-l="WARN" title="Show WARN lines">WARN</button>
+  <button class="btn lvl on" data-l="INFO" title="Show INFO lines">INFO</button>
+  <button class="btn lvl on" data-l="DEBUG" title="Show DEBUG lines">DBG</button>
+  <span class="sep hide-sm"></span>
+  <button class="btn on" id="wrap" title="Wrap long lines">Wrap</button>
+  <button class="btn hide-sm" id="times" title="Show when your browser received each line">Times</button>
+</div>
+
+<main>
+  <div id="log" tabindex="0"></div>
+  <button id="jump">&#8595; Jump to live</button>
+</main>
+
+<footer>
+  <div class="chips" id="chips"></div>
+  <form class="cmd" id="cmdForm" autocomplete="off">
+    <input id="cmd" placeholder="Type a command and press Enter  (&#8593;/&#8595; for history)" spellcheck="false">
+    <button class="btn on" type="submit">Send</button>
+  </form>
+</footer>
+
+<div id="overlay"><div class="card"><h2 id="ovTitle">Sign in required</h2><p id="ovText">This console is protected. Sign in to the device, then come back to this page.</p><a id="ovLink" href="#">Sign in</a></div></div>
+
+<script>
+(function(){
+"use strict";
+var MAX_LINES = 20000;      // kept in memory (and in Download)
+var MAX_DOM = 4000;         // rows rendered at once; older ones stay in memory
+var BASE = location.pathname.replace(/\/+$/, "") || "/";
+var WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + (BASE === "/" ? "" : BASE) + "/ws";
+var AUTH_URL = (BASE === "/" ? "" : BASE) + "/auth";
+
+var $ = function(id){ return document.getElementById(id); };
+var logEl = $("log"), jumpEl = $("jump"), statsEl = $("stats");
+var lines = [];             // {n, seq, t, x, lvl, cls}
+var nextNo = 1, lastSeq = -1, boot = null, ever = false, ws = null, retry = 0;
+var paused = false, pauseByScroll = false, pending = 0, filterFn = null, filterRe = null;
+var levels = {CRITICAL:1, ERROR:1, WARN:1, INFO:1, DEBUG:1};
+var hist = [], histPos = 0, queued = [], raf = 0;
+
+function store(k, v){ try{ if (v === undefined) return localStorage.getItem("sklwc." + k); localStorage.setItem("sklwc." + k, v); }catch(e){ return null; } }
+
+var LVL_RE = /\[(CRITICAL|ERROR|WARN(?:ING)?|INFO|DEBUG)\]/;
+function levelOf(x){ var m = LVL_RE.exec(x); if (!m) return ""; return m[1] === "WARNING" ? "WARN" : m[1]; }
+function hhmmss(d){ function p(v){ return (v < 10 ? "0" : "") + v; } return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + "." + String(d.getMilliseconds()).padStart(3, "0"); }
+function esc(s){ return s.replace(/[&<>]/g, function(c){ return c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"; }); }
+
+function visible(L){
+  if (L.note) return !filterFn;
+  if (L.lvl && !levels[L.lvl]) return false;
+  return !filterFn || filterFn(L.x);
+}
+
+function rowEl(L){
+  if (L.note){ var d = document.createElement("div"); d.className = "note"; d.textContent = L.x; return d; }
+  var r = document.createElement("div");
+  r.className = "row" + (L.lvl ? " l-" + L.lvl : "") + (L.cls ? " " + L.cls : "");
+  var html = filterRe ? esc(L.x).replace(filterRe, function(m){ return "<mark>" + m + "</mark>"; }) : esc(L.x);
+  r.innerHTML = '<span class="n">' + L.n + '</span><span class="t">' + L.t + '</span><span class="x">' + html + '</span>';
+  return r;
+}
+
+function atBottom(){ return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40; }
+function toBottom(){ logEl.scrollTop = logEl.scrollHeight; }
+
+function trimDom(){ while (logEl.childElementCount > MAX_DOM) logEl.removeChild(logEl.firstElementChild); }
+
+function flush(){
+  raf = 0;
+  if (paused || !queued.length) { queued.length = paused ? queued.length : 0; updateStats(); return; }
+  var frag = document.createDocumentFragment();
+  for (var i = 0; i < queued.length; i++) if (visible(queued[i])) frag.appendChild(rowEl(queued[i]));
+  queued.length = 0;
+  logEl.appendChild(frag);
+  trimDom();
+  toBottom();
+  updateStats();
+}
+
+function add(x, opts){
+  opts = opts || {};
+  var L = { n: opts.note ? "" : nextNo++, x: x, t: hhmmss(new Date()), lvl: opts.note ? "" : levelOf(x), cls: opts.cls || "", note: !!opts.note };
+  if (!L.note && /^Received: /.test(x)) L.cls += " echo";
+  lines.push(L);
+  if (lines.length > MAX_LINES) lines.splice(0, lines.length - MAX_LINES);
+  queued.push(L);
+  if (paused) { if (!L.note) pending++; showJump(); return; }
+  if (!raf) raf = requestAnimationFrame(flush);
+}
+
+function rerender(){
+  logEl.textContent = "";
+  var frag = document.createDocumentFragment(), shown = [];
+  for (var i = lines.length - 1; i >= 0 && shown.length < MAX_DOM; i--) if (visible(lines[i])) shown.push(lines[i]);
+  for (var j = shown.length - 1; j >= 0; j--) frag.appendChild(rowEl(shown[j]));
+  logEl.appendChild(frag);
+  queued.length = 0;
+  if (!paused) toBottom();
+  updateStats();
+}
+
+function updateStats(){
+  var n = 0; for (var i = 0; i < lines.length; i++) if (!lines[i].note) n++;
+  statsEl.textContent = n.toLocaleString() + " lines" + (filterFn || !allLevels() ? " · filtered" : "");
+}
+function allLevels(){ return levels.ERROR && levels.WARN && levels.INFO && levels.DEBUG; }
+
+// ---- pause / auto-scroll ------------------------------------------------
+function setPaused(p, byScroll){
+  if (p === paused) return;
+  paused = p; pauseByScroll = !!(p && byScroll);
+  $("pause").classList.toggle("on", p);
+  $("pause").innerHTML = p ? "&#9654; Resume" : "&#10074;&#10074; Pause";
+  if (!p) { pending = 0; rerender(); toBottom(); }
+  showJump();
+}
+function showJump(){
+  jumpEl.classList.toggle("show", paused);
+  jumpEl.innerHTML = pending ? "&#8595; " + pending.toLocaleString() + " new line" + (pending === 1 ? "" : "s") + " · Jump to live" : "&#8595; Paused · Jump to live";
+}
+// Scrolling up to read pauses on its own; scrolling back to the bottom resumes.
+var lastTop = 0;
+logEl.addEventListener("scroll", function(){
+  var up = logEl.scrollTop < lastTop; lastTop = logEl.scrollTop;
+  // Only a pause that scrolling started is ended by scrolling back down;
+  // Pause/Esc stays paused until you resume it.
+  if (!paused && up && !atBottom()) setPaused(true, true);
+  else if (paused && pauseByScroll && atBottom() && !up) setPaused(false);
+}, {passive: true});
+// Selecting text to copy also holds the view still.
+document.addEventListener("selectionchange", function(){
+  var s = document.getSelection();
+  if (s && !s.isCollapsed && logEl.contains(s.anchorNode)) setPaused(true, true);
+});
+$("pause").onclick = function(){ setPaused(!paused); };
+jumpEl.onclick = function(){ setPaused(false); };
+document.addEventListener("keydown", function(e){
+  if (e.key === "Escape") { setPaused(!paused); e.preventDefault(); }
+  else if (e.key === "End" && document.activeElement !== $("cmd") && document.activeElement !== $("filter")) setPaused(false);
+});
+
+// ---- toolbar ------------------------------------------------------------
+$("clear").onclick = function(){ lines = []; queued.length = 0; pending = 0; logEl.textContent = ""; updateStats(); showJump(); };
+function allText(){ return lines.filter(function(L){ return !L.note; }).map(function(L){ return L.x; }).join("\n") + "\n"; }
+$("save").onclick = function(){
+  var a = document.createElement("a"), d = new Date();
+  var name = ($("title").textContent || "console").replace(/[^\w.-]+/g, "_");
+  a.href = URL.createObjectURL(new Blob([allText()], {type: "text/plain"}));
+  a.download = name + "_" + d.toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".log";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+};
+$("copy").onclick = function(){
+  var txt = lines.filter(visible).filter(function(L){ return !L.note; }).map(function(L){ return L.x; }).join("\n");
+  var done = function(){ var b = $("copy"); b.textContent = "Copied"; setTimeout(function(){ b.textContent = "Copy"; }, 1200); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(done);
+  else { var ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); done(); }catch(e){} ta.remove(); }
+};
+var ft = 0;
+$("filter").oninput = function(){
+  clearTimeout(ft);
+  ft = setTimeout(function(){
+    var v = $("filter").value.trim(); filterFn = null; filterRe = null;
+    if (v) {
+      var m = /^\/(.+)\/([a-z]*)$/.exec(v), re;
+      try { re = m ? new RegExp(m[1], m[2].replace("g", "") || "i") : new RegExp(v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"); }
+      catch (e) { re = null; }
+      if (re) { filterFn = function(x){ return re.test(x); }; filterRe = new RegExp(re.source, re.flags + "g"); }
+    }
+    rerender();
+  }, 120);
+};
+Array.prototype.forEach.call(document.querySelectorAll(".lvl"), function(b){
+  b.onclick = function(){
+    var l = b.getAttribute("data-l"), on = !b.classList.contains("on");
+    b.classList.toggle("on", on); levels[l] = on ? 1 : 0; if (l === "ERROR") levels.CRITICAL = levels.ERROR;
+    store("lv", JSON.stringify(levels)); rerender();
+  };
+});
+function toggle(id, cls){
+  var b = $(id);
+  b.onclick = function(){ var on = !document.body.classList.contains(cls); document.body.classList.toggle(cls, on); b.classList.toggle("on", on); store(cls, on ? "1" : "0"); if (cls === "wrap" && !paused) toBottom(); };
+  var saved = store(cls); if (saved !== null) { document.body.classList.toggle(cls, saved === "1"); b.classList.toggle("on", saved === "1"); }
+}
+toggle("wrap", "wrap"); toggle("times", "times");
+try { var lv = JSON.parse(store("lv") || "null"); if (lv) { levels = lv; Array.prototype.forEach.call(document.querySelectorAll(".lvl"), function(b){ b.classList.toggle("on", !!levels[b.getAttribute("data-l")]); }); } } catch(e){}
+
+// ---- commands -----------------------------------------------------------
+try { hist = JSON.parse(store("hist") || "[]"); } catch(e){ hist = []; }
+histPos = hist.length;
+function send(c){
+  if (!c) return;
+  if (!ws || ws.readyState !== 1) { add("(not connected — command not sent: " + c + ")", {note: true}); return; }
+  ws.send(c);
+  if (hist[hist.length - 1] !== c) { hist.push(c); if (hist.length > 50) hist.shift(); store("hist", JSON.stringify(hist)); }
+  histPos = hist.length;
+  setPaused(false);
+}
+$("cmdForm").onsubmit = function(e){ e.preventDefault(); var i = $("cmd"); send(i.value.trim()); i.value = ""; };
+$("cmd").onkeydown = function(e){
+  if (e.key === "ArrowUp" && histPos > 0) { histPos--; this.value = hist[histPos]; e.preventDefault(); }
+  else if (e.key === "ArrowDown") { histPos = Math.min(hist.length, histPos + 1); this.value = hist[histPos] || ""; e.preventDefault(); }
+};
+function setChips(list){
+  var box = $("chips"); box.textContent = "";
+  (list || []).forEach(function(q){
+    var b = document.createElement("button"); b.type = "button"; b.className = "btn chip"; b.textContent = q.l; b.title = q.c;
+    b.onclick = function(){ send(q.c); }; box.appendChild(b);
+  });
+}
+
+// ---- connection ---------------------------------------------------------
+function setConn(state, text){ var c = $("conn"); c.className = "pill " + state; $("connText").textContent = text; }
+
+// Frames from the device:
+//   "\x01{json}"            hello / control (title, boot id, quick commands)
+//   "\x02seq\ttext\n..."    history replay (lines printed before you connected)
+//   "seq\ttext\n..."        live lines
+function ingest(body, cls){
+  var parts = body.split("\n");
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i]; if (!p) continue;
+    var tab = p.indexOf("\t"); if (tab < 0) continue;
+    var seq = parseInt(p.slice(0, tab), 10), x = p.slice(tab + 1);
+    if (seq <= lastSeq) continue;                 // already shown (reconnect overlap)
+    if (lastSeq >= 0 && seq > lastSeq + 1) add("… " + (seq - lastSeq - 1) + " line(s) skipped while the connection was busy", {note: true});
+    lastSeq = seq;
+    add(x, {cls: cls});
+  }
+}
+// Live lines that arrive before this connection's history replay are held
+// back briefly, so the replay can't be skipped as "already shown".
+var holding = false, held = [], holdTimer = 0;
+function release(){ clearTimeout(holdTimer); holding = false; var h = held; held = []; for (var i = 0; i < h.length; i++) ingest(h[i], ""); }
+function onFrame(d){
+  var c = d.charCodeAt(0);
+  if (c !== 1 && c !== 2 && holding) { held.push(d); return; }
+  if (c === 1) {
+    var h; try { h = JSON.parse(d.slice(1)); } catch(e){ return; }
+    if (h.title) { $("title").textContent = h.title; document.title = h.title + " · Console"; }
+    $("sub").textContent = h.version ? "SKLWebConsole " + h.version : "";
+    setChips(h.commands);
+    if (boot !== null && h.boot !== boot) { add("— device restarted —", {note: true}); lastSeq = -1; }
+    boot = h.boot;
+    if (h.hist && lastSeq < 0 && lines.length === 0) add("Earlier output kept on the device (before this page connected):", {note: true});
+  } else if (c === 2) {
+    var before = lastSeq; ingest(d.slice(1), "hist");
+    if (lastSeq !== before && lines.length) add("— live —", {note: true});
+    release();
+  } else ingest(d, "");
+}
+
+function connect(){
+  setConn("wait", ever ? "Reconnecting…" : "Connecting…");
+  try { ws = new WebSocket(WS_URL); } catch(e){ return later(); }
+  var opened = false;
+  ws.onopen = function(){
+    opened = true; ever = true; retry = 0; setConn("live", "Live"); $("overlay").classList.remove("show");
+    holding = true; held = []; holdTimer = setTimeout(release, 2000);
+  };
+  ws.onmessage = function(e){ if (typeof e.data === "string") onFrame(e.data); };
+  ws.onclose = function(){
+    ws = null;
+    if (!opened) { checkAuth(); } else { add("— connection lost —", {note: true}); }
+    later();
+  };
+}
+function later(){ setConn(ever ? "wait" : "off", ever ? "Reconnecting…" : "Offline"); setTimeout(connect, Math.min(8000, 800 * Math.pow(1.6, retry++))); }
+function checkAuth(){
+  fetch(AUTH_URL, {cache: "no-store", credentials: "same-origin"}).then(function(r){ return r.json(); }).then(function(a){
+    if (a && a.authed === false) {
+      setConn("off", "Sign in required");
+      var link = $("ovLink");
+      if (a.login) { link.href = a.login; link.style.display = ""; } else link.style.display = "none";
+      $("overlay").classList.add("show");
+    }
+  }).catch(function(){});
+}
+document.addEventListener("visibilitychange", function(){ if (!document.hidden && !ws) { retry = 0; } });
+
+updateStats(); showJump(); connect();
+})();
+</script>
+</body>
+</html>

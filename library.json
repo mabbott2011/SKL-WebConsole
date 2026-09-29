@@ -1,0 +1,21 @@
+{
+  "name": "SKLWebConsole",
+  "version": "1.0.0",
+  "description": "Browser-based serial console for ESP32: live log with pause, filter, level colors, download, command input, and on-device history replay. Served from flash, works offline.",
+  "keywords": "webserial, serial, console, log, websocket, esp32, remote, debug",
+  "authors": [
+    { "name": "Martin Abbott", "email": "mabbott2011@gmail.com", "maintainer": true }
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://shadyknolllabs.com",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": [
+    { "owner": "esp32async", "name": "ESPAsyncWebServer", "version": "^3.6.0" },
+    { "owner": "esp32async", "name": "AsyncTCP", "version": "^3.4.9" }
+  ],
+  "export": {
+    "exclude": ["tools/__pycache__"]
+  },
+  "examples": ["examples/*/*.ino"]
+}
