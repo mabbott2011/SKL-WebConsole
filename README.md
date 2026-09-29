@@ -30,7 +30,7 @@ Or copy this folder into your project's `lib/` directory. Dependencies are [ESP3
 ## Usage
 
 ```cpp
-#include <SKL-WebConsole.h>
+#include <SKLWebConsole.h>
 AsyncWebServer server(80);
 
 void setup() {
@@ -72,7 +72,7 @@ Compile-time options: `SKL_WEBCONSOLE_LINE_MAX` (default 512) and `SKL_WEBCONSOL
 
 | WebSerial | SKLWebConsole |
 |---|---|
-| `#include <WebSerial.h>` | `#include <SKL-WebConsole.h>` |
+| `#include <WebSerial.h>` | `#include <SKLWebConsole.h>` |
 | `WebSerial.begin(&server)` | `WebConsole.begin(&server)`. Same default URL, `/webserial`. |
 | `WebSerial.onMessage(handler)` | `WebConsole.onMessage(handler)`. Same handler signatures. |
 | `WebSerial.print/println/printf` | `WebConsole.print/println/printf` |
@@ -81,7 +81,7 @@ Compile-time options: `SKL_WEBCONSOLE_LINE_MAX` (default 512) and `SKL_WEBCONSOL
 
 ## Editing the page
 
-The page's source is `page/console.html`. The firmware embeds a gzipped copy in `src/SKL-WebConsolePage.h`, so after you edit the page, run:
+The page's source is `page/console.html`. The firmware embeds a gzipped copy in `src/SKLWebConsolePage.h`, so after you edit the page, run:
 
 ```sh
 python3 tools/embed_page.py
