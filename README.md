@@ -22,7 +22,7 @@ PlatformIO, from GitHub:
 
 ```ini
 lib_deps =
-    https://github.com/<you>/SKLWebConsole.git#v1.0.0
+    https://github.com/mabbott2011/SKL-WebConsole.git#v1.0.0
 ```
 
 Or copy this folder into your project's `lib/` directory. Dependencies are [ESP32Async/ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer) 3.6+ and [ESP32Async/AsyncTCP](https://github.com/ESP32Async/AsyncTCP).
@@ -30,7 +30,7 @@ Or copy this folder into your project's `lib/` directory. Dependencies are [ESP3
 ## Usage
 
 ```cpp
-#include <SKLWebConsole.h>
+#include <SKL-WebConsole.h>
 AsyncWebServer server(80);
 
 void setup() {
@@ -72,7 +72,7 @@ Compile-time options: `SKL_WEBCONSOLE_LINE_MAX` (default 512) and `SKL_WEBCONSOL
 
 | WebSerial | SKLWebConsole |
 |---|---|
-| `#include <WebSerial.h>` | `#include <SKLWebConsole.h>` |
+| `#include <WebSerial.h>` | `#include <SKL-WebConsole.h>` |
 | `WebSerial.begin(&server)` | `WebConsole.begin(&server)`. Same default URL, `/webserial`. |
 | `WebSerial.onMessage(handler)` | `WebConsole.onMessage(handler)`. Same handler signatures. |
 | `WebSerial.print/println/printf` | `WebConsole.print/println/printf` |
@@ -81,7 +81,7 @@ Compile-time options: `SKL_WEBCONSOLE_LINE_MAX` (default 512) and `SKL_WEBCONSOL
 
 ## Editing the page
 
-The page's source is `page/console.html`. The firmware embeds a gzipped copy in `src/SKLWebConsolePage.h`, so after you edit the page, run:
+The page's source is `page/console.html`. The firmware embeds a gzipped copy in `src/SKL-WebConsolePage.h`, so after you edit the page, run:
 
 ```sh
 python3 tools/embed_page.py
