@@ -1,6 +1,6 @@
 {
   "name": "SKLWebConsole",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Browser-based serial console for ESP32: live log with pause, filter, level colors, download, command input, and on-device history replay. Served from flash, works offline.",
   "keywords": "webserial, serial, console, log, websocket, esp32, remote, debug",
   "authors": [

@@ -39,6 +39,13 @@ header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:
 .btn:hover{border-color:var(--moss)}
 .btn.on{background:var(--moss);border-color:var(--moss);color:#0d1512;font-weight:600}
 .btn.pause.on{background:var(--glow);border-color:var(--glow)}
+.dl{position:relative;display:inline-block}
+.menu{position:absolute;top:calc(100% + 6px);left:0;z-index:4;min-width:250px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.45);display:none}
+.menu.open{display:block}
+.menu button{display:flex;width:100%;justify-content:space-between;gap:12px;background:none;border:0;border-radius:6px;padding:7px 10px;cursor:pointer;text-align:left}
+.menu button:hover,.menu button:focus{background:var(--line);outline:none}
+.menu small{color:var(--muted);font-size:12px}
+.menu label{display:flex;align-items:center;gap:8px;padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:4px;font-size:13px;color:var(--muted);cursor:pointer}
 .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
 .filter{flex:1;min-width:140px;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 10px}
 .filter:focus,.cmd input:focus{outline:none;border-color:var(--moss)}
@@ -86,7 +93,16 @@ footer{border-top:1px solid var(--line);background:var(--panel);padding:10px 16p
 <div class="bar">
   <button class="btn pause" id="pause" title="Freeze the view so you can read. New lines keep arriving in the background. (Esc toggles)">&#10074;&#10074; Pause</button>
   <button class="btn" id="clear" title="Clear the screen (the device keeps running)">Clear</button>
-  <button class="btn" id="save" title="Download everything received as a .log file">Download</button>
+  <div class="dl">
+    <button class="btn" id="save" aria-haspopup="true" aria-expanded="false" title="Save this session to a file">Download &#9662;</button>
+    <div class="menu" id="saveMenu" role="menu">
+      <button type="button" role="menuitem" data-fmt="log">Log <small>.log &middot; plain text</small></button>
+      <button type="button" role="menuitem" data-fmt="csv">CSV <small>.csv &middot; Excel, Sheets</small></button>
+      <button type="button" role="menuitem" data-fmt="json">JSON <small>.json &middot; scripts, tools</small></button>
+      <button type="button" role="menuitem" data-fmt="jsonl">JSON Lines <small>.jsonl &middot; jq, pandas</small></button>
+      <label><input type="checkbox" id="saveFiltered"> Only lines matching the filter</label>
+    </div>
+  </div>
   <button class="btn hide-sm" id="copy" title="Copy the visible lines">Copy</button>
   <span class="sep hide-sm"></span>
   <input class="filter" id="filter" placeholder="Filter (text or /regex/)" spellcheck="false" autocomplete="off">
@@ -129,7 +145,7 @@ var lines = [];             // {n, seq, t, x, lvl, cls}
 var nextNo = 1, lastSeq = -1, boot = null, ever = false, ws = null, retry = 0;
 var paused = false, pauseByScroll = false, pending = 0, filterFn = null, filterRe = null;
 var levels = {CRITICAL:1, ERROR:1, WARN:1, INFO:1, DEBUG:1};
-var hist = [], histPos = 0, queued = [], raf = 0;
+var hist = [], histPos = 0, queued = [], raf = 0, consoleVersion = "";
 
 function store(k, v){ try{ if (v === undefined) return localStorage.getItem("sklwc." + k); localStorage.setItem("sklwc." + k, v); }catch(e){ return null; } }
 
@@ -172,7 +188,10 @@ function flush(){
 
 function add(x, opts){
   opts = opts || {};
-  var L = { n: opts.note ? "" : nextNo++, x: x, t: hhmmss(new Date()), lvl: opts.note ? "" : levelOf(x), cls: opts.cls || "", note: !!opts.note };
+  var now = new Date();
+  var L = { n: opts.note ? "" : nextNo++, x: x, t: hhmmss(now), ms: now.getTime(), seq: opts.seq === undefined ? null : opts.seq,
+            src: /\bhist\b/.test(opts.cls || "") ? "history" : "live",
+            lvl: opts.note ? "" : levelOf(x), cls: opts.cls || "", note: !!opts.note };
   if (!L.note && /^Received: /.test(x)) L.cls += " echo";
   lines.push(L);
   if (lines.length > MAX_LINES) lines.splice(0, lines.length - MAX_LINES);
@@ -228,21 +247,77 @@ document.addEventListener("selectionchange", function(){
 $("pause").onclick = function(){ setPaused(!paused); };
 jumpEl.onclick = function(){ setPaused(false); };
 document.addEventListener("keydown", function(e){
-  if (e.key === "Escape") { setPaused(!paused); e.preventDefault(); }
+  if (e.key === "Escape") { if (menu.classList.contains("open")) { setMenu(false); return; } setPaused(!paused); e.preventDefault(); }
   else if (e.key === "End" && document.activeElement !== $("cmd") && document.activeElement !== $("filter")) setPaused(false);
 });
 
 // ---- toolbar ------------------------------------------------------------
 $("clear").onclick = function(){ lines = []; queued.length = 0; pending = 0; logEl.textContent = ""; updateStats(); showJump(); };
-function allText(){ return lines.filter(function(L){ return !L.note; }).map(function(L){ return L.x; }).join("\n") + "\n"; }
-$("save").onclick = function(){
-  var a = document.createElement("a"), d = new Date();
-  var name = ($("title").textContent || "console").replace(/[^\w.-]+/g, "_");
-  a.href = URL.createObjectURL(new Blob([allText()], {type: "text/plain"}));
-  a.download = name + "_" + d.toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".log";
+// ---- export (.log / .csv / .json / .jsonl) ----
+function localStamp(ms){
+  var d = new Date(ms), p = function(v, n){ return String(v).padStart(n || 2, "0"); };
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + "." + p(d.getMilliseconds(), 3);
+}
+function exportRows(onlyFiltered){
+  return lines.filter(function(L){ return !L.note && (!onlyFiltered || visible(L)); });
+}
+function rowObj(L){
+  return { line: L.n, seq: L.seq, received: new Date(L.ms).toISOString(), source: L.src, level: L.lvl || null, message: L.x };
+}
+function csvCell(v){
+  var s = v === null || v === undefined ? "" : String(v);
+  // A cell starting with = + - @ is run as a formula by Excel/Sheets; a leading
+  // apostrophe keeps it as text (standard CSV-injection guard).
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+var EXPORTERS = {
+  log:   { mime: "text/plain", body: function(rows){ return rows.map(function(L){ return L.x; }).join("\n") + "\n"; } },
+  csv:   { mime: "text/csv", body: function(rows){
+    // BOM so Excel opens it as UTF-8 (keeps symbols like µ and ° intact).
+    var out = ["line,seq,received_local,received_utc,source,level,message"];
+    rows.forEach(function(L){ out.push([L.n, L.seq, localStamp(L.ms), new Date(L.ms).toISOString(), L.src, L.lvl, L.x].map(csvCell).join(",")); });
+    return "\uFEFF" + out.join("\r\n") + "\r\n";
+  } },
+  json:  { mime: "application/json", body: function(rows, meta){ return JSON.stringify(Object.assign(meta, { lines: rows.map(rowObj) }), null, 2) + "\n"; } },
+  jsonl: { mime: "application/x-ndjson", body: function(rows){ return rows.map(function(L){ return JSON.stringify(rowObj(L)); }).join("\n") + "\n"; } }
+};
+function download(fmt){
+  var onlyFiltered = $("saveFiltered").checked, rows = exportRows(onlyFiltered), d = new Date();
+  var title = $("title").textContent || "console";
+  var meta = { device: title, console_version: consoleVersion || null, exported_at: d.toISOString(), boot_id: boot,
+               filter: onlyFiltered ? { text: $("filter").value.trim() || null, levels: Object.keys(levels).filter(function(k){ return levels[k]; }) } : null,
+               line_count: rows.length };
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([EXPORTERS[fmt].body(rows, meta)], {type: EXPORTERS[fmt].mime + ";charset=utf-8"}));
+  a.download = title.replace(/[^\w.-]+/g, "_") + "_" + d.toISOString().slice(0, 19).replace(/[:T]/g, "-") + "." + fmt;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-};
+  store("fmt", fmt);
+}
+var menu = $("saveMenu");
+function setMenu(open){
+  menu.classList.toggle("open", open); $("save").setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) {
+    // Keep the menu on screen (on a phone the button can sit near the right edge).
+    menu.style.left = "0px";
+    var r = menu.getBoundingClientRect(), room = document.documentElement.clientWidth - 8;
+    if (r.right > room) menu.style.left = Math.max(8 - r.left, room - r.right) + "px";
+  }
+  if (open) { var last = store("fmt"); var b = menu.querySelector('[data-fmt="' + (last || "log") + '"]'); if (b) b.focus(); } }
+$("save").onclick = function(e){ e.stopPropagation(); setMenu(!menu.classList.contains("open")); };
+Array.prototype.forEach.call(menu.querySelectorAll("[data-fmt]"), function(b){ b.onclick = function(){ download(b.getAttribute("data-fmt")); setMenu(false); }; });
+menu.addEventListener("click", function(e){ e.stopPropagation(); });
+document.addEventListener("click", function(){ setMenu(false); });
+menu.addEventListener("keydown", function(e){
+  if (e.key === "Escape") { setMenu(false); $("save").focus(); e.stopPropagation(); e.preventDefault(); return; }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    var items = Array.prototype.slice.call(menu.querySelectorAll("[data-fmt]")), i = items.indexOf(document.activeElement);
+    items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length].focus(); e.preventDefault();
+  }
+});
+try { $("saveFiltered").checked = store("savef") === "1"; } catch(e){}
+$("saveFiltered").onchange = function(){ store("savef", this.checked ? "1" : "0"); };
 $("copy").onclick = function(){
   var txt = lines.filter(visible).filter(function(L){ return !L.note; }).map(function(L){ return L.x; }).join("\n");
   var done = function(){ var b = $("copy"); b.textContent = "Copied"; setTimeout(function(){ b.textContent = "Copy"; }, 1200); };
@@ -318,7 +393,7 @@ function ingest(body, cls){
     if (seq <= lastSeq) continue;                 // already shown (reconnect overlap)
     if (lastSeq >= 0 && seq > lastSeq + 1) add("… " + (seq - lastSeq - 1) + " line(s) skipped while the connection was busy", {note: true});
     lastSeq = seq;
-    add(x, {cls: cls});
+    add(x, {cls: cls, seq: seq});
   }
 }
 // Live lines that arrive before this connection's history replay are held
@@ -331,6 +406,7 @@ function onFrame(d){
   if (c === 1) {
     var h; try { h = JSON.parse(d.slice(1)); } catch(e){ return; }
     if (h.title) { $("title").textContent = h.title; document.title = h.title + " · Console"; }
+    consoleVersion = h.version || "";
     $("sub").textContent = h.version ? "SKLWebConsole " + h.version : "";
     setChips(h.commands);
     if (boot !== null && h.boot !== boot) { add("— device restarted —", {note: true}); lastSeq = -1; }

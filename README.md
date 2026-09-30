@@ -11,7 +11,7 @@ Built by [Shady Knoll Labs](https://shadyknolllabs.com) for the Gnode plant sens
 - **No duplicates, no silent gaps.** Every line is numbered. Reconnecting never repeats lines, and if a slow link forces lines to be skipped, the page says how many.
 - **Filtering.** Filter by text or `/regex/` with matches highlighted, and toggle ERR / WARN / INFO / DEBUG levels. Levels come from `[ERROR]`-style tags in your lines.
 - **Commands.** A command box with ↑/↓ history (remembered in the browser), plus one-click quick-command buttons that the firmware defines.
-- **Download and copy.** Download the whole session as a `.log` file, or copy the visible lines.
+- **Download in the format you need.** Save the session as a plain `.log`, a `.csv` for Excel or Google Sheets, `.json` for scripts, or `.jsonl` (JSON Lines) for tools like `jq` and pandas. Tick "Only lines matching the filter" to export just what you're looking at. You can also copy the visible lines.
 - **Safe from any task.** `println()` sends each line whole, even when `loop()` and web handlers print at the same moment.
 - **Optional sign-in.** Protect the console with HTTP Basic credentials or with your own check, such as an existing admin session.
 - **Works offline.** The page is about 7 KB gzipped, served from flash, with no CDN or internet needed (it works on a device's own setup network). It's usable on a phone too.
@@ -78,6 +78,25 @@ Compile-time options: `SKL_WEBCONSOLE_LINE_MAX` (default 512) and `SKL_WEBCONSOL
 | `WebSerial.print/println/printf` | `WebConsole.print/println/printf` |
 | `WebSerial.setAuthentication(u, p)` | `WebConsole.setAuthentication(u, p)` |
 | `WebSerial.loop()` | `WebConsole.loop()` |
+
+## Export formats
+
+Every export has the same fields for each line:
+
+| Field | Meaning |
+|---|---|
+| `line` | Line number shown in the page |
+| `seq` | The device's own line number (counts up from 0 at boot) |
+| `received` | When the browser received the line (ISO 8601, UTC). CSV also has a `received_local` column in your time zone |
+| `source` | `history` (replayed from the device's buffer when the page connected) or `live` |
+| `level` | `CRITICAL`, `ERROR`, `WARN`, `INFO`, `DEBUG`, or empty if the line has no level tag |
+| `message` | The line exactly as printed |
+
+- **CSV** starts with a UTF-8 byte-order mark so Excel keeps symbols like µ and °. Messages starting with `=`, `+`, `-` or `@` get a leading `'` so spreadsheets don't run them as formulas; the other formats keep the text untouched.
+- **JSON** wraps the lines with details about the export: device name, console version, export time, boot ID, and the filter used (if any).
+- **JSON Lines** is one JSON object per line, with no wrapper, which is easy to stream, `grep` or load with `pandas.read_json(..., lines=True)`.
+
+For history lines, `received` is when the page connected, not when the device printed the line. Use your own timestamps in the message if you need exact device times.
 
 ## Editing the page
 

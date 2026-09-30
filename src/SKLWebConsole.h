@@ -41,7 +41,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#define SKL_WEBCONSOLE_VERSION "1.0.0"
+#define SKL_WEBCONSOLE_VERSION "1.1.0"
 
 // Longest single line kept; longer output is split into several lines.
 #ifndef SKL_WEBCONSOLE_LINE_MAX
