@@ -118,4 +118,4 @@ Frames sent from the page are plain text commands.
 
 ## License
 
-PolyForm Noncommercial 1.0.0. See `LICENSE`.
+MIT. Free to use in personal and commercial projects. See `LICENSE`.

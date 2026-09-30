@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 (2026-09-30)
+
+- License changed from PolyForm Noncommercial 1.0.0 to **MIT**, so SKL-WebConsole can be used in commercial projects too. No code changes. Releases up to 1.1.0 remain under their original license.
+
 ## 1.1.0 (2026-09-30)
 
 - Download menu with four formats: Log (`.log`), CSV (`.csv`), JSON (`.json`) and JSON Lines (`.jsonl`).
